@@ -20,6 +20,7 @@ import com.jholachhapdevs.pdfjuggler.feature.ai.data.remote.GeminiRemoteDataSour
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.UploadFileUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.GenerateTableOfContentsUseCase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -112,7 +113,9 @@ class TabScreenModel(
     val currentRotation: Float get() = renderManager.getRotationAngle()
     val isSaving: Boolean get() = saveManager.isCurrentlySaving()
     val saveResult: SaveResult? get() = saveManager.getCurrentSaveResult()
-    
+    val pageImages get() = renderManager.pageImages
+    val progressiveThumbnails get() = renderManager.thumbnailsList
+
     init {
         initializeSearchManager()
         loadPdf()
@@ -133,39 +136,54 @@ class TabScreenModel(
             isLoading = true
             try {
                 totalPages = getTotalPages(pdfFile.path)
-                // Initialize page order with original sequence
                 pageManager.initializePageOrder(totalPages)
-                
-                // Load thumbnails and current page image
-                val thumbnailsList = renderManager.renderThumbnails(totalPages)
-                renderManager.initializeThumbnails(thumbnailsList)
+
+                // Start progressive rendering of all pages and thumbnails
+                screenModelScope.launch {
+                    renderManager.renderAllPagesProgressively(totalPages)
+                }
+
+                // Render and display the first page immediately
                 val currentImage = renderManager.renderPageHighQuality(0)
                 renderManager.updateCurrentPageImage(currentImage)
-                
-                // Load text data
-                allTextDataWithCoordinates = extractAllTextData(pdfFile.path)
-                allTextData = getTextOnlyData()
-                
-                // Load bookmarks from PDF metadata
-                val loadedBookmarks = bookmarkManager.loadBookmarksFromMetadata()
-                bookmarkManager.initializeBookmarks(loadedBookmarks)
-                
-                // Extract page sizes in points for proper coordinate mapping
-                pageSizesPoints = extractPageSizesPoints(pdfFile.path)
+                isLoading = false // UI is now ready, show first page
 
-                // Clear previous search (if any) and recompute based on current query
-                if (searchManager.searchQuery.isNotBlank()) {
-                    searchManager.recomputeSearchMatches()
-                } else {
-                    searchManager.clearSearch()
+                // Render thumbnails for the left pane progressively (faster, lower DPI)
+                screenModelScope.launch {
+                    renderManager.renderThumbnailsProgressively(totalPages)
                 }
-                
-                // Start async TOC loading after PDF is loaded and displayed
+
+                // Load text data in the background
+                screenModelScope.launch {
+                    allTextDataWithCoordinates = extractAllTextData(pdfFile.path)
+                    allTextData = getTextOnlyData()
+                }
+
+                // Load bookmarks in the background
+                screenModelScope.launch {
+                    val loadedBookmarks = bookmarkManager.loadBookmarksFromMetadata()
+                    bookmarkManager.initializeBookmarks(loadedBookmarks)
+                }
+
+                // Extract page sizes in the background
+                screenModelScope.launch {
+                    pageSizesPoints = extractPageSizesPoints(pdfFile.path)
+                }
+
+                // Search logic in the background
+                screenModelScope.launch {
+                    if (searchManager.searchQuery.isNotBlank()) {
+                        searchManager.recomputeSearchMatches()
+                    } else {
+                        searchManager.clearSearch()
+                    }
+                }
+
+                // Load TOC in the background
                 loadTableOfContentsAsync()
 
             } catch (e: Exception) {
                 e.printStackTrace()
-            } finally {
                 isLoading = false
             }
         }
