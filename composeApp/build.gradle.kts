@@ -35,6 +35,13 @@ kotlin {
             // MaryTTS dependencies
             implementation("de.dfki.mary:marytts:5.2.1")
             implementation("de.dfki.mary:voice-cmu-slt-hsmm:5.2.1")
+            
+            // Missing annotation dependencies needed by ProGuard
+            implementation("javax.annotation:javax.annotation-api:1.3.2")
+            implementation("com.google.code.findbugs:jsr305:3.0.2")
+            
+            // Optional dependencies for better compatibility
+            implementation("org.apache.commons:commons-lang3:3.12.0")
         }
     }
 }
@@ -48,6 +55,9 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.jholachhapdevs.pdfjuggler"
             packageVersion = "1.0.0"
+            
+            // Include additional JVM modules
+            modules("java.sql", "java.management", "java.logging", "java.desktop")
         }
     }
 }

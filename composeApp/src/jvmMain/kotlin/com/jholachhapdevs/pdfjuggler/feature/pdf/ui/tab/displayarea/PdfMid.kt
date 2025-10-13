@@ -185,6 +185,54 @@ fun PdfMid(
         return merged
     }
 
+    /**
+     * Reconstructs proper text with word boundaries from individual character TextPositionData.
+     * This is needed because PDFBox extracts characters individually, but we need to identify
+     * word boundaries to properly space the text for TTS.
+     */
+    fun reconstructTextFromCharacters(characters: List<TextPositionData>): String {
+        if (characters.isEmpty()) return ""
+        
+        // Sort characters by position (top to bottom, left to right)
+        val sorted = characters.sortedWith(compareBy({ it.y }, { it.x }))
+        
+        val result = StringBuilder()
+        var lastChar: TextPositionData? = null
+        
+        for (char in sorted) {
+            val charText = char.text.trim()
+            if (charText.isEmpty()) continue
+            
+            if (lastChar != null) {
+                // Calculate distance between characters
+                val horizontalGap = char.x - (lastChar.x + lastChar.width)
+                val verticalGap = abs(char.y - lastChar.y)
+                
+                // Determine if we need to add a space or newline
+                when {
+                    // New line (significant vertical gap)
+                    verticalGap > lastChar.height * 0.5 -> {
+                        if (result.isNotEmpty() && !result.endsWith(" ") && !result.endsWith("\n")) {
+                            result.append(" ")
+                        }
+                    }
+                    // Word boundary (horizontal gap larger than typical character spacing)
+                    horizontalGap > lastChar.width * 0.3 -> {
+                        if (result.isNotEmpty() && !result.endsWith(" ")) {
+                            result.append(" ")
+                        }
+                    }
+                    // Characters are adjacent, no space needed
+                }
+            }
+            
+            result.append(charText)
+            lastChar = char
+        }
+        
+        return result.toString().trim()
+    }
+
     val textBoundsNormalized = remember(textData, pageImage, pageSizePoints, rotation, pageIndex) {
         val rot = ((rotation % 360f) + 360f) % 360f
         val rotInt = when {
@@ -576,8 +624,8 @@ fun PdfMid(
                                                                             { (nb, _) -> nb.left }
                                                                         ))
 
-                                                                        selectedRectsNormalized = selectedPairs.map { it.first }
-                                                                        selectedText = selectedPairs.joinToString("") { it.second.text }
+                                                        selectedRectsNormalized = selectedPairs.map { it.first }
+                                                        selectedText = reconstructTextFromCharacters(selectedPairs.map { it.second })
                                                                         if (selectedText.isNotEmpty()) onTextSelected(selectedText)
                                                                     }
                                                                 }
