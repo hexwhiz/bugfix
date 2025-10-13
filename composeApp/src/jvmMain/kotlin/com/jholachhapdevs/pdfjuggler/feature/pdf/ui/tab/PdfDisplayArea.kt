@@ -14,7 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.*
 import com.jholachhapdevs.pdfjuggler.core.ui.components.JButton
 import com.jholachhapdevs.pdfjuggler.core.ui.components.JText
 import com.jholachhapdevs.pdfjuggler.feature.ai.ui.AiChatComponent
@@ -147,6 +152,17 @@ fun PdfDisplayArea(
     val listState = rememberLazyListState()
     var showSaveAsDialog by remember { mutableStateOf(false) }
 
+    // Ensure this area can receive keyboard events
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    // Track whether the PDF viewer has focus; only then handle arrow-navigation
+    var viewerHasFocus by remember { mutableStateOf(false) }
+
+    // Manage search visibility locally while syncing with external state
+    var searchVisible by remember { mutableStateOf(isSearchVisible) }
+    LaunchedEffect(isSearchVisible) { searchVisible = isSearchVisible }
+
     // When this tab becomes active (composed), ensure the selected page is scrolled to top.
     LaunchedEffect(model.pdfFile.path) {
         if (model.thumbnails.isNotEmpty()) {
@@ -182,16 +198,70 @@ fun PdfDisplayArea(
         Box(
             Modifier
                 .fillMaxSize()
-                .onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown && event.isCtrlPressed) {
-                        when (event.key) {
-                            Key.F -> { onSearchVisibilityChange(!isSearchVisible); true }
+                .onFocusChanged { viewerHasFocus = it.isFocused }
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        // Debug logging
+                        // println("DEBUG KeyEvent: key=${'$'}{event.key}, ctrl=${'$'}{event.isCtrlPressed}")
+                        when {
+                            event.isCtrlPressed && event.key == Key.F -> {
+                                println("DEBUG: Ctrl+F pressed -> toggle search (was ${'$'}searchVisible)")
+                                searchVisible = !searchVisible
+                                onSearchVisibilityChange(searchVisible)
+                                true
+                            }
+                            event.isCtrlPressed && event.key == Key.S -> {
+                                println("DEBUG: Ctrl+S pressed -> save")
+                                if (!model.isSaving) { model.saveChanges() }
+                                true
+                            }
+                            event.isCtrlPressed && event.key == Key.Z -> {
+                                println("DEBUG: Ctrl+Z pressed -> reset order if changed")
+                                if (!model.isSaving && model.hasPageChanges) { model.resetPageOrder() }
+                                true
+                            }
+                            // Arrow key navigation (only when viewer has focus, search is not visible, and no Ctrl modifier)
+                            viewerHasFocus && !event.isCtrlPressed && !searchVisible && (event.key == Key.DirectionUp || event.key == Key.DirectionLeft) -> {
+                                val idx = model.selectedPageIndex
+                                if (idx > 0) {
+                                    println("DEBUG: Arrow Prev -> ${'$'}idx -> ${'$'}{idx - 1}")
+                                    model.selectPage(idx - 1)
+                                }
+                                true
+                            }
+                            viewerHasFocus && !event.isCtrlPressed && !searchVisible && (event.key == Key.DirectionDown || event.key == Key.DirectionRight) -> {
+                                val idx = model.selectedPageIndex
+                                if (idx < model.totalPages - 1) {
+                                    println("DEBUG: Arrow Next -> ${'$'}idx -> ${'$'}{idx + 1}")
+                                    model.selectPage(idx + 1)
+                                }
+                                true
+                            }
+                            event.key == Key.Escape && searchVisible -> {
+                                println("DEBUG: Esc pressed -> close search")
+                                searchVisible = false
+                                onSearchVisibilityChange(false)
+                                focusRequester.requestFocus()
+                                true
+                            }
                             else -> false
                         }
                     } else {
                         false
                     }
                 }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val e = awaitPointerEvent()
+                            if (e.type == PointerEventType.Press) {
+                                // Reclaim focus on any click/tap in viewer area
+                                focusRequester.requestFocus()
+                            }
+                        }
+                    }
+                }
+                .focusRequester(focusRequester)
                 .focusable()
         ) {
             Column(Modifier.fillMaxSize()) {
@@ -240,7 +310,9 @@ fun PdfDisplayArea(
                                     text = msg,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 if (model.isSaving) {
                                     CircularProgressIndicator(
@@ -265,7 +337,9 @@ fun PdfDisplayArea(
                                     Spacer(Modifier.width(4.dp))
                                     JText(
                                         text = "Reset order",
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 // Save (overwrite)
@@ -282,7 +356,9 @@ fun PdfDisplayArea(
                                     Spacer(Modifier.width(4.dp))
                                     JText(
                                         text = "Save",
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 // Save As
@@ -299,7 +375,9 @@ fun PdfDisplayArea(
                                     Spacer(Modifier.width(4.dp))
                                     JText(
                                         text = "Save As",
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -423,8 +501,13 @@ fun PdfDisplayArea(
             // Search popup overlay (positioned on top-right)
             PdfSearchBar(
                 model = model,
-                isVisible = isSearchVisible,
-                onDismiss = { onSearchVisibilityChange(false) }
+                isVisible = searchVisible,
+                onDismiss = {
+                    searchVisible = false
+                    onSearchVisibilityChange(false)
+                    // Ensure main viewer regains focus so Ctrl+F works again
+                    focusRequester.requestFocus()
+                }
             )
             
             // Floating TTS close button (when TTS is active)
