@@ -7,9 +7,9 @@ import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.model.AttachedFile
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.model.ChatMessage
-import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.SendPromptUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.UploadFileUseCase
 import com.jholachhapdevs.pdfjuggler.feature.pdf.domain.model.PdfFile
+import com.jholachhapdevs.pdfjuggler.feature.pdf.ui.tab.TabScreenModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -19,7 +19,7 @@ import java.io.File
 
 class AiScreenModel(
     val pdfFile: PdfFile,
-    val sendPromptUseCase: SendPromptUseCase,
+    private val tabScreenModel: TabScreenModel, // Add reference to TabScreenModel
     private val uploadFileUseCase: UploadFileUseCase,
     initialSelectedPageIndex: Int,
     val assistantName: String = "Ringmaster"
@@ -73,16 +73,10 @@ class AiScreenModel(
 
         currentJob = screenModelScope.launch {
             try {
-                val attached = ensurePdfFileAttachment()
-                val withAttachment = if (attached != null) {
-                    // Attach the PDF to the last user message
-                    uiState.messages.dropLast(1) + userMessage.copy(files = listOf(attached))
-                } else {
-                    uiState.messages
-                }
-
-                val reply = sendPromptUseCase(withAttachment)
-                uiState = uiState.copy(messages = withAttachment + reply, isSending = false)
+                // Use RAG pipeline for PDF Q&A
+                val answer = tabScreenModel.answerUserQuery(prompt)
+                val reply = ChatMessage(role = "assistant", text = answer)
+                uiState = uiState.copy(messages = uiState.messages + reply, isSending = false)
             } catch (t: Throwable) {
                 uiState = uiState.copy(isSending = false, error = t.message ?: "Failed to send")
             }
@@ -124,19 +118,18 @@ class AiScreenModel(
     ) {
         if (uiState.isSending) return
 
-        val (prompt, shouldAttachPdf) = when (mode) {
+        val (prompt, _) = when (mode) {
             com.jholachhapdevs.pdfjuggler.feature.pdf.ui.tab.AiRequestMode.Dictionary -> {
-                Pair("What does '$text' mean?", false) // Dictionary doesn't need PDF context
+                Pair("What does '$text' mean?", false)
             }
             com.jholachhapdevs.pdfjuggler.feature.pdf.ui.tab.AiRequestMode.Translate -> {
                 Pair(
                     "Please translate ONLY this specific text: '$text'\n\nWhat language would you like me to translate it to? Please specify the target language, and I'll provide the translation for just this selected text.",
-                    false // Translation doesn't need PDF context, just the selected text
+                    false
                 )
             }
         }
 
-        // Start sending immediately without showing the prompt message in chat
         uiState = uiState.copy(
             isSending = true,
             error = null
@@ -144,15 +137,9 @@ class AiScreenModel(
 
         currentJob = screenModelScope.launch {
             try {
-                val attached = if (shouldAttachPdf) ensurePdfFileAttachment() else null
-                val promptMessage = ChatMessage(
-                    role = "user", 
-                    text = prompt,
-                    files = if (attached != null) listOf(attached) else emptyList()
-                )
-                
-                val reply = sendPromptUseCase(listOf(promptMessage))
-                // Only show the AI response, not the prompt
+                // Use RAG pipeline for dictionary/translate
+                val answer = tabScreenModel.answerUserQuery(prompt)
+                val reply = ChatMessage(role = "assistant", text = answer)
                 uiState = uiState.copy(
                     messages = uiState.messages + reply,
                     isSending = false
@@ -193,15 +180,9 @@ class AiScreenModel(
 
         currentJob = screenModelScope.launch {
             try {
-                val attached = ensurePdfFileAttachment()
-                val promptMessage = ChatMessage(
-                    role = "user", 
-                    text = prompt,
-                    files = if (attached != null) listOf(attached) else emptyList()
-                )
-                
-                val reply = sendPromptUseCase(listOf(promptMessage))
-                // Only show the AI response (cheat sheet), not the prompt
+                // Use RAG pipeline for cheat sheet generation
+                val answer = tabScreenModel.answerUserQuery(prompt)
+                val reply = ChatMessage(role = "assistant", text = answer)
                 uiState = uiState.copy(
                     messages = uiState.messages + reply,
                     isSending = false

@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Rect
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.jholachhapdevs.pdfjuggler.core.pdf.SaveResult
+import com.jholachhapdevs.pdfjuggler.core.util.Env
 import com.jholachhapdevs.pdfjuggler.feature.pdf.domain.model.TableOfContentData
 import com.jholachhapdevs.pdfjuggler.feature.pdf.domain.model.PdfFile
 import com.jholachhapdevs.pdfjuggler.feature.pdf.domain.model.TextPositionData
@@ -19,6 +20,11 @@ import com.jholachhapdevs.pdfjuggler.feature.pdf.ui.PositionAwareTextStripper
 import com.jholachhapdevs.pdfjuggler.feature.ai.data.remote.GeminiRemoteDataSource
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.UploadFileUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.GenerateTableOfContentsUseCase
+import com.jholachhapdevs.pdfjuggler.feature.rag.GeminiEmbedder
+import com.jholachhapdevs.pdfjuggler.feature.rag.SQLiteVectorDb
+import com.jholachhapdevs.pdfjuggler.feature.rag.GeminiLLM
+import com.jholachhapdevs.pdfjuggler.feature.rag.RagRetriever
+import com.jholachhapdevs.pdfjuggler.feature.rag.RagEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -60,6 +66,14 @@ class TabScreenModel(
         uploadFileUseCase = uploadFileUseCase
     )
     
+    // RAG pipeline components
+    private val geminiApiKey = Env.GEMINI_API_KEY
+    private val embedder = GeminiEmbedder(geminiApiKey)
+    private val vectorDb = SQLiteVectorDb()
+    private val retriever = RagRetriever(embedder, vectorDb)
+    private val llm = GeminiLLM(geminiApiKey)
+    private val ragEngine = RagEngine(retriever, embedder, vectorDb, llm)
+
     // Core state
     var totalPages by mutableStateOf(0)
         private set
@@ -181,6 +195,11 @@ class TabScreenModel(
 
                 // Load TOC in the background
                 loadTableOfContentsAsync()
+
+                // Build vector DB for RAG in background
+                screenModelScope.launch {
+                    ragEngine.indexPdf(pdfFile.path)
+                }
 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -740,5 +759,11 @@ class TabScreenModel(
             children = children
         )
     }
-}
 
+    /**
+     * Answers a user query using the RAG pipeline (retrieves context, sends to Gemini LLM)
+     */
+    public suspend fun answerUserQuery(query: String, topK: Int = 3): String {
+        return ragEngine.answerQuery(query, topK)
+    }
+}

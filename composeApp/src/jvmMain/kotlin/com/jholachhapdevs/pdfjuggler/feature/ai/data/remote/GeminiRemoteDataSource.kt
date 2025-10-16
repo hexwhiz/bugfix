@@ -101,4 +101,14 @@ class GeminiRemoteDataSource(
             parameter("key", apiKey)
         }.body()
     }
+
+    /**
+     * Helper to log available Gemini models and their supported methods.
+     */
+    suspend fun logAvailableModels() {
+        val models = GeminiModelLister.listModels(apiKey)
+        models.forEach { model ->
+            println("Model: ${model.name}, Supported: ${model.supportedGenerationMethods}")
+        }
+    }
 }

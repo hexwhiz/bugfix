@@ -42,6 +42,12 @@ kotlin {
             
             // Optional dependencies for better compatibility
             implementation("org.apache.commons:commons-lang3:3.12.0")
+
+            // RAG dependencies
+            implementation("com.squareup.okhttp3:okhttp:4.11.0")
+            implementation("org.json:json:20231013")
+            implementation("org.xerial:sqlite-jdbc:3.45.1.0")
+            implementation("org.apache.pdfbox:pdfbox:2.0.30")
         }
     }
 }

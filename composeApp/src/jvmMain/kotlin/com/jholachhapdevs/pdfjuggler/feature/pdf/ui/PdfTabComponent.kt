@@ -12,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.jholachhapdevs.pdfjuggler.feature.ai.data.remote.GeminiRemoteDataSource
-import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.SendPromptUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.UploadFileUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.ui.AiScreenModel
 import androidx.compose.ui.Modifier
@@ -183,13 +182,12 @@ fun PdfTabComponent(
                 } else if (model.isAiChatEnabled) {
                     // AI chat mode - show PDF with AI chat panel
                     if (currentTabModel != null) {
-                        // Create AiScreenModel for the current tab
-                        val remote = remember { GeminiRemoteDataSource() }
+                        // Create AiScreenModel for the current tab using RAG pipeline
                         val aiScreenModel = remember(currentTabModel.pdfFile.path) {
                             AiScreenModel(
                                 pdfFile = currentTabModel.pdfFile,
-                                sendPromptUseCase = SendPromptUseCase(remote),
-                                uploadFileUseCase = UploadFileUseCase(remote),
+                                tabScreenModel = currentTabModel, // Pass TabScreenModel for RAG
+                                uploadFileUseCase = UploadFileUseCase(GeminiRemoteDataSource()), // Only for file upload, not Q&A
                                 initialSelectedPageIndex = currentTabModel.selectedPageIndex
                             )
                         }
