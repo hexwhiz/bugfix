@@ -24,7 +24,6 @@ class GeminiLLM(private val apiKey: String) {
     suspend fun generate(query: String, context: List<String>): String? = withContext(Dispatchers.IO) {
         // If no context, warn and return a helpful message
         if (context.isEmpty()) {
-            println("[GeminiLLM] No context chunks provided to LLM. Returning warning.")
             return@withContext "[No context from PDF was found. Please ensure the PDF is indexed and try again.]"
         }
         // Build the contents array: each context chunk as a part, then the question as a part
@@ -36,13 +35,10 @@ class GeminiLLM(private val apiKey: String) {
         contentsArray.put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", "Question: $query"))))
 
         val json = JSONObject().put("contents", contentsArray)
-        println("[GeminiLLM] Sending structured context to Gemini:\n$json")
         val body = json.toString().toRequestBody("application/json".toMediaTypeOrNull())
         val request = Request.Builder().url(url).post(body).build()
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string()
-            println("[GeminiLLM] HTTP status: ${response.code}")
-            println("[GeminiLLM] Response body: $responseBody")
             if (!response.isSuccessful) return@withContext null
             val respJson = JSONObject(responseBody ?: return@withContext null)
             val candidates = respJson.optJSONArray("candidates") ?: return@withContext null
