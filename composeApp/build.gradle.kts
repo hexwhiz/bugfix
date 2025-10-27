@@ -44,10 +44,14 @@ kotlin {
             implementation("org.apache.commons:commons-lang3:3.12.0")
 
             // RAG dependencies
-            implementation("com.squareup.okhttp3:okhttp:4.11.0")
-            implementation("org.json:json:20231013")
-            implementation("org.xerial:sqlite-jdbc:3.45.1.0")
             implementation("org.apache.pdfbox:pdfbox:2.0.30")
+
+            // LangChain4j dependencies
+            implementation("dev.langchain4j:langchain4j:0.36.2")
+            implementation("dev.langchain4j:langchain4j-google-ai-gemini:0.36.2")
+            implementation("dev.langchain4j:langchain4j-embeddings:0.36.2")
+            implementation("dev.langchain4j:langchain4j-embeddings-all-minilm-l6-v2:0.36.2")
+            implementation("dev.langchain4j:langchain4j-document-parser-apache-pdfbox:0.36.2")
         }
     }
 }

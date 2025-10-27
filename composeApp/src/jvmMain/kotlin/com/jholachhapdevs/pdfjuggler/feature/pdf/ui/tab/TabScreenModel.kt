@@ -20,11 +20,7 @@ import com.jholachhapdevs.pdfjuggler.feature.pdf.ui.PositionAwareTextStripper
 import com.jholachhapdevs.pdfjuggler.feature.ai.data.remote.GeminiRemoteDataSource
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.UploadFileUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.GenerateTableOfContentsUseCase
-import com.jholachhapdevs.pdfjuggler.feature.rag.GeminiEmbedder
-import com.jholachhapdevs.pdfjuggler.feature.rag.SQLiteVectorDb
-import com.jholachhapdevs.pdfjuggler.feature.rag.GeminiLLM
-import com.jholachhapdevs.pdfjuggler.feature.rag.RagRetriever
-import com.jholachhapdevs.pdfjuggler.feature.rag.RagEngine
+import com.jholachhapdevs.pdfjuggler.feature.rag.LangChainRagEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -66,13 +62,9 @@ class TabScreenModel(
         uploadFileUseCase = uploadFileUseCase
     )
     
-    // RAG pipeline components
+    // RAG pipeline using LangChain4j
     private val geminiApiKey = Env.GEMINI_API_KEY
-    private val embedder = GeminiEmbedder(geminiApiKey)
-    private val vectorDb = SQLiteVectorDb()
-    private val retriever = RagRetriever(embedder, vectorDb)
-    private val llm = GeminiLLM(geminiApiKey)
-    private val ragEngine = RagEngine(retriever, embedder, vectorDb, llm)
+    private val ragEngine = LangChainRagEngine(geminiApiKey)
 
     // Core state
     var totalPages by mutableStateOf(0)
