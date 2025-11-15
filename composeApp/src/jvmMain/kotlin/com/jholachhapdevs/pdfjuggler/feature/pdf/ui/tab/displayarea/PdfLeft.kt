@@ -462,7 +462,7 @@ private fun BookmarksView(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                JText("Save Bookmarks", fontWeight = FontWeight.Medium)
+                Text("Save Bookmarks", fontWeight = FontWeight.Medium)
             }
         }
 

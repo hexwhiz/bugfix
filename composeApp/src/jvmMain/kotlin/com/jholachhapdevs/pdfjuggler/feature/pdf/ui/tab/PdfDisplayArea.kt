@@ -1,11 +1,14 @@
 package com.jholachhapdevs.pdfjuggler.feature.pdf.ui.tab
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SaveAs
 import androidx.compose.material3.*
@@ -215,10 +218,30 @@ fun PdfDisplayArea(
                                 if (!model.isSaving) { model.saveChanges() }
                                 true
                             }
+                            // Undo/Redo shortcuts
+                            event.isCtrlPressed && event.isShiftPressed && event.key == Key.Z -> {
+                                // Ctrl+Shift+Z -> Redo highlight (if possible)
+                                if (model.canRedoHighlightForDisplayedPage()) {
+                                    model.redoLastHighlightForDisplayedPage()
+                                    true
+                                } else false
+                            }
+                            event.isCtrlPressed && event.key == Key.Y -> {
+                                // Ctrl+Y -> Redo highlight (Windows convention)
+                                if (model.canRedoHighlightForDisplayedPage()) {
+                                    model.redoLastHighlightForDisplayedPage()
+                                    true
+                                } else false
+                            }
                             event.isCtrlPressed && event.key == Key.Z -> {
-                                println("DEBUG: Ctrl+Z pressed -> reset order if changed")
-                                if (!model.isSaving && model.hasPageChanges) { model.resetPageOrder() }
-                                true
+                                // Ctrl+Z -> Undo highlight if available, otherwise reset page order if changed
+                                if (model.canUndoHighlightForDisplayedPage()) {
+                                    model.undoLastHighlightForDisplayedPage()
+                                    true
+                                } else if (!model.isSaving && model.hasPageChanges) {
+                                    model.resetPageOrder()
+                                    true
+                                } else false
                             }
                             // Arrow key navigation (only when viewer has focus, search is not visible, and no Ctrl modifier)
                             viewerHasFocus && !event.isCtrlPressed && !searchVisible && (event.key == Key.DirectionUp || event.key == Key.DirectionLeft) -> {
@@ -274,10 +297,10 @@ fun PdfDisplayArea(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                
-                // Unified Save Controls Bar (shown when any changes exist)
-                val hasAnyUnsaved = model.hasPageChanges || model.hasUnsavedBookmarks || model.hasUnsavedHighlights
-                if (hasAnyUnsaved) {
+
+                // Action bar: show when page order changed OR there are unsaved highlights OR unsaved bookmarks
+                val showActionBar = model.hasPageChanges || model.hasUnsavedHighlights || model.hasUnsavedBookmarks
+                AnimatedVisibility (showActionBar) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -323,24 +346,62 @@ fun PdfDisplayArea(
                                 }
                             }
                             // Action buttons
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                JButton(
-                                    onClick = { model.resetPageOrder() },
-                                    enabled = !model.isSaving && model.hasPageChanges
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Undo,
-                                        contentDescription = "Reset",
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    JText(
-                                        text = "Reset order",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                // Undo/Redo for highlights on current page
+                                if (model.canUndoHighlightForDisplayedPage()) {
+                                    JButton(
+                                        onClick = { model.undoLastHighlightForDisplayedPage() },
+                                        enabled = !model.isSaving
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Undo,
+                                            contentDescription = "Undo highlight",
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Undo",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                if (model.canRedoHighlightForDisplayedPage()) {
+                                    JButton(
+                                        onClick = { model.redoLastHighlightForDisplayedPage() },
+                                        enabled = !model.isSaving
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Redo,
+                                            contentDescription = "Redo highlight",
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Redo",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                // Reset order only when page order changed
+                                if (model.hasPageChanges) {
+                                    JButton(
+                                        onClick = { model.resetPageOrder() },
+                                        enabled = !model.isSaving
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Undo,
+                                            contentDescription = "Reset",
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Reset order",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 // Save (overwrite)
                                 JButton(
@@ -351,12 +412,10 @@ fun PdfDisplayArea(
                                         imageVector = Icons.Filled.Save,
                                         contentDescription = "Save",
                                         modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(Modifier.width(4.dp))
-                                    JText(
+                                    Text(
                                         text = "Save",
-                                        color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -370,14 +429,26 @@ fun PdfDisplayArea(
                                         imageVector = Icons.Filled.SaveAs,
                                         contentDescription = "Save As",
                                         modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(Modifier.width(4.dp))
-                                    JText(
+                                    Text(
                                         text = "Save As",
-                                        color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                // Dismiss/revert button (closes bar by reverting changes)
+                                IconButton(
+                                    onClick = {
+                                        model.revertAllUnsavedChanges()
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Close,
+                                        contentDescription = "Dismiss and revert",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
@@ -413,6 +484,14 @@ fun PdfDisplayArea(
                     val textDataForPage = model.allTextDataWithCoordinates[originalPageIndex] ?: emptyList()
 
                     // In PdfDisplayArea.kt, update the PdfMid() call with these new parameters:
+
+                    // Compute background loading to show linear progress under page number
+                    val showPageLoading = remember(model.progressiveThumbnails, model.pageImages, model.isTocCurrentlyLoading()) {
+                        val thumbsPending = model.progressiveThumbnails.any { it == null }
+                        val pagesPending = model.pageImages.any { it == null }
+                        val tocPending = model.isTocCurrentlyLoading()
+                        !model.isLoading && (thumbsPending || pagesPending || tocPending)
+                    }
 
                     PdfMid(
                         modifier = Modifier
@@ -457,7 +536,7 @@ fun PdfDisplayArea(
                         },
                         onDictionaryRequest = { text -> model.requestAiDictionary(text) },
                         onTranslateRequest = { text -> model.requestAiTranslate(text) },
-                        onSpeakRequest = { text -> 
+                        onSpeakRequest = { text ->
                             ttsViewModel?.let { tts ->
                                 tts.setTextToSpeak(text)
                                 tts.play()
@@ -480,7 +559,8 @@ fun PdfDisplayArea(
                             if (model.selectedPageIndex < model.totalPages - 1) {
                                 model.selectPage(model.selectedPageIndex + 1)
                             }
-                        }
+                        },
+                        showLoading = showPageLoading
                     )
                     // AI Chat panel (only show when enabled and not in fullscreen)
                     aiScreenModel?.let { screenModel ->
@@ -521,6 +601,7 @@ fun PdfDisplayArea(
                     )
                 }
             }
+
         }
     }
 
