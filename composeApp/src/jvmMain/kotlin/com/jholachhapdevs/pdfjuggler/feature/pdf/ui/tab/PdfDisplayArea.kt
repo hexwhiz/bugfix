@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SaveAs
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
@@ -150,10 +151,12 @@ fun PdfDisplayArea(
     aiScreenModel: AiScreenModel? = null,
     ttsViewModel: TTSViewModel? = null,
     isSearchVisible: Boolean = false,
-    onSearchVisibilityChange: (Boolean) -> Unit = {}
+    onSearchVisibilityChange: (Boolean) -> Unit = {},
+    aiApiKey: String? = null
 ) {
     val listState = rememberLazyListState()
     var showSaveAsDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // Ensure this area can receive keyboard events
     val focusRequester = remember { FocusRequester() }

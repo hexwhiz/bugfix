@@ -51,6 +51,14 @@ compose.desktop {
     application {
         mainClass = "com.jholachhapdevs.pdfjuggler.MainKt"
 
+        buildTypes {
+            release {
+                proguard {
+                    isEnabled.set(false)
+                }
+            }
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "PDF-Juggler"
