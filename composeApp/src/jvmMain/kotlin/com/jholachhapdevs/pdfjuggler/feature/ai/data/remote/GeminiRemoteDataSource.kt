@@ -16,6 +16,7 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.delay
@@ -64,11 +65,44 @@ class GeminiRemoteDataSource(
 
         val requestBody = GeminiRequest(contents = contents)
 
-        return httpClient.post("$baseUrl/models/$model:generateContent") {
+        // Use HttpResponse so we can inspect status and body as text
+        val httpResponse: HttpResponse = httpClient.post("$baseUrl/models/$model:generateContent") {
             contentType(ContentType.Application.Json)
             parameter("key", apiKey)
             setBody(requestBody)
-        }.body()
+        }
+
+        val raw = httpResponse.bodyAsText()
+        val statusCode = httpResponse.status.value
+
+        if (statusCode >= 400) {
+            // Try to extract a clean error message from the response JSON
+            try {
+                val root = json.parseToJsonElement(raw)
+                val obj = root as? JsonObject
+                val message = obj?.get("error")?.let { errEl ->
+                    (errEl as? JsonObject)?.let { jsonString(it, "message") }
+                } ?: obj?.let { jsonString(it, "message") }
+
+                val cleanMessage = message ?: "Gemini API error (status=$statusCode)"
+                throw Exception(cleanMessage)
+            } catch (t: Throwable) {
+                // If parsing fails, avoid sending raw JSON - send a generic message
+                throw Exception("Gemini API error (status=$statusCode)")
+            }
+        }
+
+        // Success path: parse into GeminiResponse using the same lenient JSON
+        return try {
+            json.decodeFromString(com.jholachhapdevs.pdfjuggler.feature.ai.data.model.GeminiResponse.serializer(), raw)
+        } catch (t: Throwable) {
+            // Fallback: try the typed body deserialization (may throw but keep message concise)
+            try {
+                httpResponse.body()
+            } catch (t2: Throwable) {
+                throw Exception("Failed to parse Gemini response")
+            }
+        }
     }
 
     // Generic upload for any mime type (pdf, images, etc.)
@@ -92,22 +126,22 @@ class GeminiRemoteDataSource(
         } catch (_: Throwable) {
             // Lenient parse: handle {"file":{...}}, {"name":...}, or {"error":{...}}
             val root: JsonElement = try { json.parseToJsonElement(raw) } catch (t: Throwable) {
-                throw Exception("Unexpected upload response (not JSON): $raw", t)
+                throw Exception("Unexpected upload response (not JSON)")
             }
-            val obj = root as? JsonObject ?: throw Exception("Unexpected upload response (not an object): $raw")
+            val obj = root as? JsonObject ?: throw Exception("Unexpected upload response (not an object)")
 
             // Error shape from Google APIs
             obj["error"]?.let { errEl ->
                 val errObj = errEl as? JsonObject
-                val msg = errObj?.let { jsonString(it, "message") }
-                throw Exception("Gemini upload error: ${msg ?: raw}")
+                val msg = errObj?.let { jsonString(it, "message") } ?: jsonString(obj, "message")
+                throw Exception("Gemini upload error: ${msg ?: "Unknown Gemini upload error"}")
             }
 
             // file wrapper
             obj["file"]?.let { fEl ->
-                val fObj = (fEl as? JsonObject) ?: throw Exception("Unexpected file object: $raw")
+                val fObj = (fEl as? JsonObject) ?: throw Exception("Unexpected file object")
                 val name = jsonString(fObj, "name")
-                if (name.isNullOrBlank()) throw Exception("Upload response missing file.name: $raw")
+                if (name.isNullOrBlank()) throw Exception("Upload response missing file.name")
                 return@let com.jholachhapdevs.pdfjuggler.feature.ai.data.model.GeminiFile(
                     name = name,
                     uri = jsonString(fObj, "uri"),
@@ -128,7 +162,7 @@ class GeminiRemoteDataSource(
                     sizeBytes = jsonString(obj, "size_bytes")
                 )
             } else {
-                throw Exception("Unexpected upload response (no name): $raw")
+                throw Exception("Unexpected upload response (no name)")
             }
         }
 

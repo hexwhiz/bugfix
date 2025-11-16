@@ -135,11 +135,20 @@ fun AiChatComponent(screenModel: AiScreenModel, aiModelName: String? = null, aiA
                         else -> aiModelName
                     }
 
-                    Text(
-                        text = if (modelLabel.isNotBlank()) "${screenModel.assistantName} — $modelLabel" else screenModel.assistantName,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = cs.onSurface
-                    )
+                    Column {
+                        Text(
+                            text = screenModel.assistantName,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = cs.onSurface
+                        )
+                        if (modelLabel.isNotBlank()) {
+                            Text(
+                                text = modelLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = cs.onSurfaceVariant
+                            )
+                        }
+                    }
                     Spacer(Modifier.weight(1f))
                     IconButton(
                         onClick = { showApiDialog = true },

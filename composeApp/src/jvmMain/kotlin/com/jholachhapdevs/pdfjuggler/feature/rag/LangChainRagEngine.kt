@@ -92,7 +92,8 @@ class LangChainRagEngine(private val apiKey: String, private val modelName: Stri
 
             println("[LangChainRagEngine] Successfully indexed PDF with ${segments.size} chunks")
         } catch (e: Exception) {
-            println("[LangChainRagEngine] Error indexing PDF: ${e.message}")
+            val cleanErrorMessage = extractErrorMessage(e)
+            println("[LangChainRagEngine] Error indexing PDF: $cleanErrorMessage")
             e.printStackTrace()
         }
     }
@@ -147,7 +148,85 @@ class LangChainRagEngine(private val apiKey: String, private val modelName: Stri
         } catch (e: Exception) {
             println("[LangChainRagEngine] Error answering query: ${e.message}")
             e.printStackTrace()
-            return@withContext "[Error processing query: ${e.message}]"
+
+            // Extract a clean error message from the exception
+            val cleanErrorMessage = extractErrorMessage(e)
+            return@withContext "[Error: $cleanErrorMessage]"
+        }
+    }
+
+    /**
+     * Extracts a clean error message from an exception that may contain JSON error responses
+     */
+    private fun extractErrorMessage(exception: Exception): String {
+        val message = exception.message ?: return "Unknown error occurred"
+
+        // First, try to extract the actual message from nested JSON
+        // Pattern 1: "message": "actual error message with details..."
+        val detailedMessagePattern = """"message":\s*"([^"]+(?:\\.[^"]+)*)"""".toRegex()
+        val detailedMatch = detailedMessagePattern.find(message)
+
+        if (detailedMatch != null) {
+            val extractedMessage = detailedMatch.groupValues[1]
+            // Clean up escaped characters and split on newlines
+            val cleanedMessage = extractedMessage
+                .replace("""\\n""", " ")
+                .replace("""\\"""", "\"")
+                .replace("""\n""", " ")
+                .trim()
+
+            // Extract just the first sentence (before the first period followed by space or end)
+            val firstSentence = cleanedMessage.split(Regex("""\.\s+""")).firstOrNull() ?: cleanedMessage
+            return if (firstSentence.length > 150) {
+                firstSentence.take(150) + "..."
+            } else {
+                firstSentence
+            }
+        }
+
+        // Pattern 2: If message contains JSON with error code
+        if (message.contains(""""error"""") && message.contains("{")) {
+            // Try to find HTTP error codes and provide user-friendly messages
+            if (message.contains("429")) {
+                return "Rate limit exceeded. Please try again later or check your API quota."
+            }
+            if (message.contains("401") || message.contains("403")) {
+                return "Authentication error. Please check your API key."
+            }
+            if (message.contains("400")) {
+                return "Bad request. Please try rephrasing your query."
+            }
+            if (message.contains("500") || message.contains("503")) {
+                return "Service temporarily unavailable. Please try again later."
+            }
+        }
+
+        // If the message contains "HTTP error" extract just that part
+        if (message.contains("HTTP error")) {
+            val httpErrorPattern = """HTTP error \((\d+)\)""".toRegex()
+            val httpMatch = httpErrorPattern.find(message)
+            if (httpMatch != null) {
+                val statusCode = httpMatch.groupValues[1]
+                return when (statusCode) {
+                    "429" -> "Rate limit exceeded. Please try again later."
+                    "401", "403" -> "Authentication error. Please check your API key."
+                    "400" -> "Bad request. Please try rephrasing your query."
+                    "500", "503" -> "Service temporarily unavailable. Please try again later."
+                    else -> "HTTP error ($statusCode). Please try again."
+                }
+            }
+        }
+
+        // If it looks like JSON or RuntimeException wrapper, return a generic message
+        if (message.trim().startsWith("{") || message.contains("RuntimeException") || message.contains("Exception")) {
+            return "An error occurred while processing your request. Please try again."
+        }
+
+        // Return the original message if it's already clean (limit length)
+        return if (message.length > 150) {
+            message.take(150) + "..."
+        } else {
+            message
         }
     }
 
