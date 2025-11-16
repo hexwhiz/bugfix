@@ -146,7 +146,7 @@ fun SaveDialog(
                             },
                             modifier = Modifier.height(56.dp)
                         ) {
-                            JText(
+                            Text(
                                 text = "Browse",
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -220,7 +220,7 @@ fun SaveDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                     ) {
                         JButton(onClick = onDismiss) {
-                            JText(
+                            Text(
                                 text = "Cancel",
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -241,7 +241,7 @@ fun SaveDialog(
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(Modifier.width(8.dp))
-                            JText(
+                            Text(
                                 text = "Save",
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -313,7 +313,7 @@ fun SaveResultDialog(
             },
             confirmButton = {
                 JButton(onClick = onDismiss) {
-                    JText(
+                    Text(
                         text = "OK",
                         color = MaterialTheme.colorScheme.primary
                     )

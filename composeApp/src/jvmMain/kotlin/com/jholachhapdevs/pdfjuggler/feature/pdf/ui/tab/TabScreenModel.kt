@@ -315,6 +315,26 @@ class TabScreenModel(
         return highlightManager.getHighlightsForDisplayedPage(original)
     }
 
+    fun undoLastHighlightForDisplayedPage() {
+        val original = getOriginalPageIndex(selectedPageIndex)
+        highlightManager.undoLastHighlightForPage(original)
+    }
+
+    fun redoLastHighlightForDisplayedPage() {
+        val original = getOriginalPageIndex(selectedPageIndex)
+        highlightManager.redoLastHighlightForPage(original)
+    }
+
+    fun canUndoHighlightForDisplayedPage(): Boolean {
+        val original = getOriginalPageIndex(selectedPageIndex)
+        return highlightManager.canUndoForPage(original)
+    }
+
+    fun canRedoHighlightForDisplayedPage(): Boolean {
+        val original = getOriginalPageIndex(selectedPageIndex)
+        return highlightManager.canRedoForPage(original)
+    }
+
     // ============ Rendering Methods ============
     fun zoomIn() {
         screenModelScope.launch {
@@ -452,6 +472,24 @@ class TabScreenModel(
                 pageManager.markPageChangesSaved()
             }
         }
+    }
+
+    // ============ Revert Methods for Action Bar Dismiss ============
+    fun revertUnsavedBookmarks() {
+        bookmarkManager.revertUnsavedBookmarks()
+    }
+    fun revertUnsavedHighlights() {
+        highlightManager.revertUnsavedHighlights()
+    }
+    fun revertUnsavedPageOrder() {
+        screenModelScope.launch {
+            pageManager.resetPageOrder(totalPages)
+        }
+    }
+    fun revertAllUnsavedChanges() {
+        if (hasUnsavedBookmarks) revertUnsavedBookmarks()
+        if (hasUnsavedHighlights) revertUnsavedHighlights()
+        if (hasPageChanges) revertUnsavedPageOrder()
     }
     
     fun clearSaveResult() = saveManager.clearSaveResult()

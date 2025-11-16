@@ -61,10 +61,24 @@ compose.desktop {
     application {
         mainClass = "com.jholachhapdevs.pdfjuggler.MainKt"
 
+        buildTypes {
+            release {
+                proguard {
+                    isEnabled.set(false)
+                }
+            }
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.jholachhapdevs.pdfjuggler"
+            packageName = "PDF-Juggler"
             packageVersion = "1.0.0"
+            
+            windows {
+                menuGroup = "PDF Juggler"
+                shortcut = true
+                menu = true
+            }
             
             // Include additional JVM modules
             modules("java.sql", "java.management", "java.logging", "java.desktop")
