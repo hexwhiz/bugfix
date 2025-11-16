@@ -41,7 +41,8 @@ import kotlin.math.min
 class TabScreenModel(
     val pdfFile: PdfFile,
     private val window: java.awt.Window? = null,
-    private val onAiChatRequest: (() -> Unit)? = null
+    private val onAiChatRequest: (() -> Unit)? = null,
+    initialModelName: String = com.jholachhapdevs.pdfjuggler.core.util.Resources.DEFAULT_AI_MODEL
 ) : ScreenModel {
     
     // Core managers
@@ -64,7 +65,19 @@ class TabScreenModel(
     
     // RAG pipeline using LangChain4j
     private val geminiApiKey = Env.GEMINI_API_KEY
-    private val ragEngine = LangChainRagEngine(geminiApiKey)
+    private val ragEngine = LangChainRagEngine(geminiApiKey, initialModelName)
+
+    // Current model name (mutable for updates)
+    private var currentModelName: String = initialModelName
+
+    /**
+     * Updates the AI model used by the RAG engine
+     */
+    fun updateAiModel(modelName: String) {
+        currentModelName = modelName
+        ragEngine.updateModel(modelName)
+        println("[TabScreenModel] Updated AI model to: $modelName")
+    }
 
     // Core state
     var totalPages by mutableStateOf(0)

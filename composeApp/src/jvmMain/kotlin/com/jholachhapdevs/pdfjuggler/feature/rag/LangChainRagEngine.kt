@@ -21,19 +21,31 @@ import java.io.File
 
 /**
  * RAG Engine implementation using LangChain4j
- * Uses Gemini 2.5 Flash-Lite for LLM and Gemini Embedding 001 for embeddings
+ * Uses Gemini 2.5 Flash for LLM and Gemini Embedding 004 for embeddings
  */
-class LangChainRagEngine(private val apiKey: String) {
+class LangChainRagEngine(private val apiKey: String, private val modelName: String = "gemini-2.5-flash") {
 
     private val embeddingModel: EmbeddingModel = GoogleAiEmbeddingModel.builder()
         .apiKey(apiKey)
         .modelName("text-embedding-004")
         .build()
 
-    private val chatModel: ChatLanguageModel = GoogleAiGeminiChatModel.builder()
-        .apiKey(apiKey)
-        .modelName("gemini-2.0-flash-exp")
-        .build()
+    private var chatModel: ChatLanguageModel = buildChatModel(modelName)
+
+    private fun buildChatModel(model: String): ChatLanguageModel {
+        return GoogleAiGeminiChatModel.builder()
+            .apiKey(apiKey)
+            .modelName(model)
+            .build()
+    }
+
+    /**
+     * Updates the chat model when the user changes model selection
+     */
+    fun updateModel(newModelName: String) {
+        chatModel = buildChatModel(newModelName)
+        println("[LangChainRagEngine] Updated chat model to: $newModelName")
+    }
 
     private val embeddingStore: EmbeddingStore<TextSegment> = InMemoryEmbeddingStore()
 

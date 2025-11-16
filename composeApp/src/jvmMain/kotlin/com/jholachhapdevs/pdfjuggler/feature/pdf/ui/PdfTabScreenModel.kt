@@ -12,11 +12,12 @@ import com.jholachhapdevs.pdfjuggler.feature.pdf.domain.usecase.GetPdfUseCase
 import com.jholachhapdevs.pdfjuggler.feature.pdf.ui.tab.PdfTab
 import com.jholachhapdevs.pdfjuggler.feature.pdf.ui.tab.TabScreenModel
 import kotlinx.coroutines.launch
-
+import com.jholachhapdevs.pdfjuggler.core.util.Resources.DEFAULT_AI_MODEL
 class PdfTabScreenModel(
     private val getPdfUseCase: GetPdfUseCase,
     private val window: java.awt.Window,
-    initial: PdfFile? = null
+    initial: PdfFile? = null,
+    private var currentAiModel: String = DEFAULT_AI_MODEL
 ) : ScreenModel {
 
     val tabs = mutableStateListOf<Tab>()
@@ -36,6 +37,15 @@ class PdfTabScreenModel(
         private set
 
     private val contentCache = LinkedHashMap<String, TabScreenModel>()
+
+    /**
+     * Updates the AI model for all open tabs
+     */
+    fun updateAiModel(modelName: String) {
+        currentAiModel = modelName
+        contentCache.values.forEach { it.updateAiModel(modelName) }
+        println("[PdfTabScreenModel] Updated AI model to $modelName for ${contentCache.size} tab(s)")
+    }
 
     init {
         initial?.let { addTab(it) }
@@ -90,8 +100,9 @@ class PdfTabScreenModel(
             TabScreenModel(
                 pdfFile = file, 
                 window = window,
-                onAiChatRequest = { setAiChatVisible(true) }
-            ) 
+                onAiChatRequest = { setAiChatVisible(true) },
+                initialModelName = currentAiModel
+            )
         }
     }
 

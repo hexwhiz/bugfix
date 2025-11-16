@@ -152,7 +152,8 @@ fun PdfDisplayArea(
     ttsViewModel: TTSViewModel? = null,
     isSearchVisible: Boolean = false,
     onSearchVisibilityChange: (Boolean) -> Unit = {},
-    aiApiKey: String? = null
+    aiApiKey: String? = null,
+    aiModelName: String? = null // new optional param to accept selected model
 ) {
     val listState = rememberLazyListState()
     var showSaveAsDialog by remember { mutableStateOf(false) }
@@ -574,7 +575,11 @@ fun PdfDisplayArea(
                                     .fillMaxSize()
                                     .padding(start = 8.dp)
                             ) {
-                                AiChatComponent(screenModel = screenModel)
+                                AiChatComponent(
+                                    screenModel = screenModel,
+                                    aiModelName = aiModelName, // forward selected model
+                                    aiApiKey = aiApiKey // forward API key if present
+                                )
                             }
                         }
                     }

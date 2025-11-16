@@ -19,24 +19,32 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Splitscreen
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.Tab
 import com.jholachhapdevs.pdfjuggler.core.ui.components.JText
+import com.jholachhapdevs.pdfjuggler.core.util.Resources
 
 @Composable
 fun TabBar(
@@ -49,6 +57,9 @@ fun TabBar(
     onToggleSplitView: () -> Unit = {},
     isAiChatEnabled: Boolean = false,
     onToggleAiChat: () -> Unit = {},
+    // AI model selection (new)
+    selectedAiModel: String = Resources.DEFAULT_AI_MODEL,
+    onAiModelSelected: (String) -> Unit = {},
     // PDF Viewer controls
     zoomFactor: Float = 1f,
     minZoom: Float = 0.25f,
@@ -62,6 +73,13 @@ fun TabBar(
     onSearchClick: () -> Unit = {}
 ) {
     val navigator = LocalTabNavigator.current
+
+    // Simple mapping of model keys to friendly labels
+    val modelOptions = listOf(
+        "gemini-2.5-flash" to "Flash 2.5",
+        "gemini-2.5-flash-lite" to "Flash 2.5 Lite",
+        "gemini-2.0-flash-exp" to "Flash 2.0 Exp"
+    )
 
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -224,7 +242,7 @@ fun TabBar(
                     // Right spacer
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // Right side: Print, AI, Split View, Search, Fullscreen
+                    // Right side: Print, AI, Split View, Search, Fullscreen and Model selector
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -245,6 +263,34 @@ fun TabBar(
                                 contentDescription = "Print",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
+                        }
+
+                        // Small model selector (compact dropdown with icon)
+                        var expanded by remember { mutableStateOf(false) }
+                        val currentLabel = modelOptions.firstOrNull { it.first == selectedAiModel }?.second
+                            ?: selectedAiModel
+
+                        IconButton(
+                            onClick = { expanded = !expanded },
+                            modifier = Modifier.width(40.dp).height(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Psychology,
+                                contentDescription = "AI Model: $currentLabel",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            modelOptions.forEach { (key, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        onAiModelSelected(key)
+                                        expanded = false
+                                    }
+                                )
+                            }
                         }
 
                         // AI Chat toggle

@@ -15,12 +15,6 @@ import com.jholachhapdevs.pdfjuggler.feature.ai.data.remote.GeminiRemoteDataSour
 import com.jholachhapdevs.pdfjuggler.feature.ai.domain.usecase.UploadFileUseCase
 import com.jholachhapdevs.pdfjuggler.feature.ai.ui.AiScreenModel
 import androidx.compose.ui.Modifier
-import com.jholachhapdevs.pdfjuggler.core.datastore.PrefsManager
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.ui.unit.dp
-import com.jholachhapdevs.pdfjuggler.core.ui.components.JButton
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.CurrentTab
@@ -38,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.jholachhapdevs.pdfjuggler.feature.tts.rememberTTSViewModel
+import com.jholachhapdevs.pdfjuggler.core.util.Resources
 
 @Composable
 fun PdfTabComponent(
@@ -50,6 +45,14 @@ fun PdfTabComponent(
     var showProgressDialog by remember { mutableStateOf(false) }
     var progressMessage by remember { mutableStateOf("Printing...") }
     var isSearchVisible by remember { mutableStateOf(false) }
+
+    // Selected AI model (default from resources, then load persisted)
+    var selectedAiModel by remember { mutableStateOf(Resources.DEFAULT_AI_MODEL) }
+
+    // Load persisted model selection on mount
+    LaunchedEffect(Unit) {
+        selectedAiModel = com.jholachhapdevs.pdfjuggler.core.datastore.AiModelStore.getSelectedModel()
+    }
 
     val pdfGenerationService = remember { PdfGenerationService() }
 
@@ -113,6 +116,19 @@ fun PdfTabComponent(
                     onToggleAiChat = {
                         println("DEBUG: Toggle AI chat clicked")
                         model.toggleAiChat()
+                    },
+                    selectedAiModel = selectedAiModel,
+                    onAiModelSelected = { newModel ->
+                        println("DEBUG: Selected AI model changed to $newModel")
+                        selectedAiModel = newModel
+
+                        // Persist the selection
+                        scope.launch {
+                            com.jholachhapdevs.pdfjuggler.core.datastore.AiModelStore.saveSelectedModel(newModel)
+                        }
+
+                        // Update all tabs with the new model
+                        model.updateAiModel(newModel)
                     },
                     // PDF Viewer controls
                     zoomFactor = currentTabModel?.currentZoom ?: 1f,
@@ -194,14 +210,15 @@ fun PdfTabComponent(
                 } else {
                     // Hoist AiScreenModel so it survives AI panel show/hide
                     val aiScreenModel = if (currentTabModel != null) {
-                        remember(currentTabModel.pdfFile.path, geminiApiKey) {
+                        remember(currentTabModel.pdfFile.path, geminiApiKey, selectedAiModel) {
                             val keyToUse = geminiApiKey ?: ""
                             val remoteWithKey = GeminiRemoteDataSource(apiKey = keyToUse)
                             AiScreenModel(
                                 pdfFile = currentTabModel.pdfFile,
-                                sendPromptUseCase = SendPromptUseCase(remoteWithKey),
+                                tabScreenModel = currentTabModel,
                                 uploadFileUseCase = UploadFileUseCase(remoteWithKey),
-                                initialSelectedPageIndex = currentTabModel.selectedPageIndex
+                                initialSelectedPageIndex = currentTabModel.selectedPageIndex,
+                                assistantName = "Ringmaster"
                             )
                         }
                     } else null
@@ -214,7 +231,8 @@ fun PdfTabComponent(
                             ttsViewModel = ttsViewModel,
                             isSearchVisible = isSearchVisible,
                             onSearchVisibilityChange = { isSearchVisible = it },
-                            aiApiKey = geminiApiKey
+                            aiApiKey = geminiApiKey,
+                            aiModelName = selectedAiModel
                         )
                     } else if (currentTabModel != null) {
                         // Normal single view mode

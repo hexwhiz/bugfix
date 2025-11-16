@@ -67,17 +67,21 @@ import com.jholachhapdevs.pdfjuggler.feature.pdf.ui.ApiKeyDialog
 import com.mikepenz.markdown.m3.Markdown
 
 @Composable
-fun AiChatComponent(screenModel: AiScreenModel) {
+fun AiChatComponent(screenModel: AiScreenModel, aiModelName: String? = null, aiApiKey: String? = null) {
     val ui = screenModel.uiState
     val cs = MaterialTheme.colorScheme
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
 
-    // API key state
-    var apiKey by remember { mutableStateOf("") }
+    // API key state - prefer passed-in key, otherwise read from store
+    var storedKey by remember { mutableStateOf("") }
     var showApiDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { apiKey = com.jholachhapdevs.pdfjuggler.core.datastore.ApiKeyStore.getGeminiApiKey() ?: "" }
+    LaunchedEffect(Unit) {
+        storedKey = com.jholachhapdevs.pdfjuggler.core.datastore.ApiKeyStore.getGeminiApiKey() ?: ""
+    }
+
+    val effectiveApiKey = aiApiKey ?: storedKey
 
     // Auto-scroll to newest message on change
     LaunchedEffect(ui.messages.size) {
@@ -123,8 +127,16 @@ fun AiChatComponent(screenModel: AiScreenModel) {
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val modelLabel = when (aiModelName) {
+                        "gemini-2.5-flash" -> "Flash 2.5"
+                        "gemini-2.5-flash-lite" -> "Flash 2.5 Lite"
+                        "gemini-2.0-flash-exp" -> "Flash 2.0 Exp"
+                        null -> ""
+                        else -> aiModelName
+                    }
+
                     Text(
-                        text = screenModel.assistantName,
+                        text = if (modelLabel.isNotBlank()) "${screenModel.assistantName} — $modelLabel" else screenModel.assistantName,
                         style = MaterialTheme.typography.titleLarge,
                         color = cs.onSurface
                     )
@@ -149,7 +161,7 @@ fun AiChatComponent(screenModel: AiScreenModel) {
                     }
                 }
 
-                val hasKey = apiKey.isNotBlank()
+                val hasKey = effectiveApiKey.isNotBlank()
                 if (!hasKey) {
                     Spacer(Modifier.height(8.dp))
                     Surface(
@@ -336,18 +348,18 @@ fun AiChatComponent(screenModel: AiScreenModel) {
         // Reusable API Key dialog, controlled by header actions or empty-state button
         if (showApiDialog) {
             ApiKeyDialog(
-                apiKey = apiKey,
+                apiKey = effectiveApiKey,
                 onSave = { key ->
                     scope.launch {
-                    ApiKeyStore.saveGeminiApiKey(key.trim())
-                    apiKey = key.trim()
+                        ApiKeyStore.saveGeminiApiKey(key.trim())
+                        storedKey = key.trim()
                     }
                     showApiDialog = false
                 },
                 onClear = {
                     scope.launch {
-                    ApiKeyStore.clearGeminiApiKey()
-                    apiKey = ""
+                        ApiKeyStore.clearGeminiApiKey()
+                        storedKey = ""
                     }
                     showApiDialog = false
                 },
